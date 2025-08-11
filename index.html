@@ -1,0 +1,119 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Tic-Tac-Toe vs Computer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Arial, sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px; background:#ffda45; }
+    h1 { margin-bottom:6px; }
+    #board { display:grid; grid-template-columns:repeat(3,100px); gap:10px; margin:20px 0; }
+    .cell { width:100px; height:100px; display:flex; align-items:center; justify-content:center;
+            font-size:56px; background:#fff3c0; border-radius:10px; cursor:pointer; box-shadow: 0 2px 0 rgba(0,0,0,0.2); }
+    .cell.disabled { cursor:default; opacity:0.7; }
+    #status { margin-top:10px; }
+    button { padding:8px 12px; border-radius:8px; border:none; cursor:pointer; background:#2d9cdb; color:white; }
+  </style>
+</head>
+<body>
+  <h1>Tic-Tac-Toe — You (X) vs Computer (O)</h1>
+  <div id="board"></div>
+  <div id="status">Your turn</div>
+  <div style="margin-top:12px;">
+    <button id="restart">Restart</button>
+  </div>
+
+<script>
+  const HUMAN = 'X';
+  const COMP = 'O';
+  let board = Array(9).fill('');
+  const boardEl = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const restartBtn = document.getElementById('restart');
+
+  function render() {
+    boardEl.innerHTML = '';
+    board.forEach((val, idx) => {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (val !== '' ? ' disabled' : '');
+      cell.textContent = val;
+      cell.addEventListener('click', () => onCellClick(idx));
+      boardEl.appendChild(cell);
+    });
+  }
+
+  function checkWinnerLocal(b) {
+    const wins = [
+      [0,1,2],[3,4,5],[6,7,8],
+      [0,3,6],[1,4,7],[2,5,8],
+      [0,4,8],[2,4,6]
+    ];
+    for (const [a,b1,c] of wins) {
+      if (b[a] && b[a] === b[b1] && b[a] === b[c]) return b[a];
+    }
+    if (b.every(x=>x!=='') ) return 'Draw';
+    return null;
+  }
+
+  async function onCellClick(idx) {
+    if (board[idx] !== '') return;
+    // make human move
+    board[idx] = HUMAN;
+    render();
+    let winner = checkWinnerLocal(board);
+    if (winner) {
+      endGame(winner);
+      return;
+    }
+
+    statusEl.textContent = 'Computer thinking...';
+    // send board to server for computer move
+    try {
+      const resp = await fetch('/move', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({board})
+      });
+      const data = await resp.json();
+      if (data.error) {
+        statusEl.textContent = 'Error: ' + data.error;
+        return;
+      }
+      board = data.board;
+      render();
+      if (data.winner) {
+        endGame(data.winner);
+      } else {
+        statusEl.textContent = 'Your turn';
+      }
+    } catch (e) {
+      statusEl.textContent = 'Network error';
+      console.error(e);
+    }
+  }
+
+  function endGame(winner) {
+    if (winner === 'Draw') {
+      statusEl.textContent = "It's a draw!";
+    } else if (winner === HUMAN) {
+      statusEl.textContent = "You win! 🎉";
+    } else {
+      statusEl.textContent = "Computer wins 😢";
+    }
+    // disable all cells by adding 'disabled' class visually
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach(c=>c.classList.add('disabled'));
+  }
+
+  restartBtn.addEventListener('click', () => {
+    board = Array(9).fill('');
+    statusEl.textContent = 'Your turn';
+    render();
+  });
+
+  // initial render
+  render();
+</script>
+</body>
+</html>
